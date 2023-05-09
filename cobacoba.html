@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Contoh Mengambil Data Historis API Thingspeak</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+   <style>
+    td {
+      padding: 5px;
+      border: 1px solid black;
+    }
+
+    #chart-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    #data {
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+#data th, #data td {
+  padding: 10px;
+  border: 1px solid black;
+}
+
+#chart {
+  height: 200px;
+}
+
+
+    #data {
+  grid-column: 1 / 2;
+  grid-row: 2 / 3;  /* tambahkan baris ini */
+}
+
+#chart {
+  grid-column: 2 / 3;
+  grid-row: 1 / 2;  /* tambahkan baris ini */
+}
+
+  </style>
+</head>
+<body>
+
+  
+
+<div id="iframe-container" style="width: 100%; height: 50vh;">
+  <iframe src="https://mlatif10.github.io/REALTIMEDANLOADTIME.html" style="width: 100%; height: 100%;"></iframe>
+
+  <h1 style="text-align: center;">Data Loadtime</h1>
+
+ <div class="container">
+  <div>
+    <label for="start">Start Time:</label>
+    <input type="datetime-local" id="start" name="start">
+  </div>
+
+  <div>
+    <label for="end">End Time:</label>
+    <input type="datetime-local" id="end" name="end">
+  </div>
+
+  <div>
+    <label for="field1">Temeperature:</label>
+    <input type="checkbox" id="field1" name="field1" checked>
+  </div>
+
+  <div>
+    <label for="field2">Humidity:</label>
+    <input type="checkbox" id="field2" name="field2" checked>
+  </div>
+
+
+  <button onclick="getData()">Get Data</button>
+
+  <div class="container">
+  <div>
+    <canvas id="chart"></canvas>
+  </div>
+  </div>
+
+  <div class="container">
+  <div class="table-container" style="display:none;">
+    <table id="data">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Temperature</th>
+          <th>Humidity</th>
+        </tr>
+      </thead>
+      <tbody>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+
+</div>
+  
+
+  <script>
+    const CHANNEL_ID = '2122215';
+    const API_KEY = '8228UZ6M7TFC412F';
+
+
+// Fungsi untuk mengambil data dari API Thingspeak
+    async function getData() {
+
+    	// Mengambil nilai input dari form
+      const start = new Date(document.getElementById('start').value).toISOString();
+      const end = new Date(document.getElementById('end').value).toISOString();
+      const field1Checked = document.getElementById('field1').checked;
+      const field2Checked = document.getElementById('field2').checked;
+
+      // Membuat string field yang berisi field yang dipilih
+      let fieldString = '';
+      if (field1Checked) {
+        fieldString += 'field1,';
+      }
+      if (field2Checked) {
+        fieldString += 'field2,';
+      }
+      fieldString = fieldString.slice(0, -1);
+
+      // Membuat URL untuk mengambil data historis dari API Thingspeak
+      const historicalURL = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds.json?api_key=${API_KEY}&start=${start}&end=${end}&fields=${fieldString}`;
+
+      // Mengambil data dari API dengan menggunakan fetch dan menunggu responsenya
+      const response = await fetch(historicalURL);
+      const data = await response.json();
+
+     // Menampilkan data pada tabel di halaman HTML dan membuat data chart
+const tableBody = document.querySelector('#data tbody');
+const chartDataTabel = {
+  labels: [],
+  datasets: []
+};
+
+// Mengambil seluruh data feeds dari response
+const feeds = data.feeds;
+
+// Looping sebanyak feeds
+for (let i = 0; i < feeds.length; i++) {
+  const feed = feeds[i];
+  const row = document.createElement('tr');
+
+  // Tambahkan cell untuk waktu
+  const timeCell = document.createElement('td');
+  const date = new Date(feed.created_at);
+  timeCell.textContent = `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+  row.appendChild(timeCell);
+
+  // Tambahkan cell untuk suhu
+  const tempCell = document.createElement('td');
+  tempCell.textContent = `${feed.field1}°C`;
+  row.appendChild(tempCell);
+
+  // Tambahkan cell untuk kelembaban
+  const humiCell = document.createElement('td');
+  humiCell.textContent = `${feed.field2}%`;
+  row.appendChild(humiCell);
+
+  // Tambahkan baris ke tabel
+  tableBody.appendChild(row);
+}
+
+// Menampilkan data pada chart
+const ctx = document.getElementById('chart').getContext('2d');
+const chartDataGrafik = {
+    labels: feeds.map(feed => {
+    const date = new Date(feed.created_at);
+    return date.toLocaleString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: true });
+  }),
+  datasets: []
+};
+if (field1Checked) {
+  chartDataGrafik.datasets.push({
+    label: 'Temperature (C)',
+    data: feeds.map(feed => feed.field1),
+    borderColor: 'rgb(255, 99, 132)',
+    backgroundColor: 'rgba(255, 99, 132, 0.2)',
+    fill: false
+  });
+}
+if (field2Checked) {
+  chartDataGrafik.datasets.push({
+    label: 'Humidity (%)',
+    data: feeds.map(feed => feed.field2),
+    borderColor: 'rgb(54, 162, 235)',
+    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+    fill: false
+  });
+}
+new Chart(ctx, {
+  type: 'line',
+  data: chartDataGrafik,
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      xAxes: [{
+        ticks: {
+          autoSkip: true,
+          maxTicksLimit: 10
+        }
+      }]
+    }
+  }
+});
+
+// Kode untuk menampilkan chart di sini
+
+// Setelah chart ditampilkan dan data berhasil diambil, tampilkan tabel
+// dengan mengubah display property pada class "table-container"
+document.querySelector('.table-container').style.display = 'block';
+
+
+
+};
+
+    
+  </script>
+
+  <footer>
+  <p style="text-align: center;">&copy; 2023 Tugas Akhir Aplikasi Pemrograman</p>
+</footer>
+
+</body>
+</html>
